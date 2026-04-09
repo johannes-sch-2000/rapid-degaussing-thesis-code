@@ -4,7 +4,8 @@ title: "Rapid Degaussing Thesis Code"
 authors:
   - family-names: "Schütt"
     given-names: "Johannes"
-version: "1.0.0"
+version: "1.0.1"
+doi: "10.5281/zenodo.19486717" 
 date-released: 2026-04-09
 url: "https://github.com/johannes-sch-2000/rapid-degaussing-thesis-code"
 license: "MIT"
