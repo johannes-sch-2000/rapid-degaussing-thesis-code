@@ -8,11 +8,11 @@ This repository contains the thesis-relevant software used for rapid degaussing 
 Terminal-based quality assurance script for waveform and recording checks.
 
 ### Degauss_APP
-Used to set and trigger the degaussing signal
+Used to set and trigger the degaussing signal.
 Prebuilt executable: available in the GitHub release assets.
 
 ### Fieldmap_APP
-Used to execute the fieldmap and generate 3D fieldplot 
+Used to execute the fieldmap and generate 3D fieldplot. 
 Prebuilt executable: available in the GitHub release assets.
 
 ## Notes
