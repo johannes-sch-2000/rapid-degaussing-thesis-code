@@ -1,15 +1,23 @@
 # Rapid Degaussing Thesis Code
 
-This repository contains the scripts used in my master's thesis on rapid degaussing of a magnetically shielded room (KMSR).
+This repository contains the thesis-relevant software used for rapid degaussing and evaluation of the Kiel Magnetically Shielded Room.
 
-## Contents
-- `python/` Python scripts for triggering the degaussing signal, fieldmapping and QA
+## Repository contents
 
-## Purpose
-These scripts were used to generate, evaluate, and analyze degaussing procedures for the Kiel Magnetically Shielded Room.
+### QA Script
+Source: `qa/qa_script.py`  
+Terminal-based quality assurance script for waveform and recording checks.
 
-## How to use
-Refer to README of the individual scripts in the folders
+### Application 1
+Source: `app1/src/`  
+Prebuilt executable: available in the GitHub release assets.
+
+### Application 2
+Source: `app2/src/`  
+Prebuilt executable: available in the GitHub release assets.
 
 ## Notes
-This repository contains only the thesis-relevant scripts, not the full development repository.
+This repository contains the source code only. Prebuilt application packages are attached to the release for convenience.
+
+## Citation
+Please use the DOI associated with the archived release.
