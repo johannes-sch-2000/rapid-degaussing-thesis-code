@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Rapid Degaussing Thesis Code"
+authors:
+  - family-names: "Schütt"
+    given-names: "Johannes"
+version: "1.0.0"
+date-released: 2026-04-09
+url: "https://github.com/johannes-sch-2000/rapid-degaussing-thesis-code"
+license: "MIT"
