@@ -4,16 +4,15 @@ This repository contains the thesis-relevant software used for rapid degaussing 
 
 ## Repository contents
 
-### QA Script
-Source: `qa/qa_script.py`  
+### QA Script 
 Terminal-based quality assurance script for waveform and recording checks.
 
-### Application 1
-Source: `app1/src/`  
+### Degauss_APP
+Used to set and trigger the degaussing signal
 Prebuilt executable: available in the GitHub release assets.
 
-### Application 2
-Source: `app2/src/`  
+### Fieldmap_APP
+Used to execute the fieldmap and generate 3D fieldplot 
 Prebuilt executable: available in the GitHub release assets.
 
 ## Notes
