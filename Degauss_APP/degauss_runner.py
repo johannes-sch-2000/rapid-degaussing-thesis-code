@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import json
 import math
 import os
@@ -12,11 +11,9 @@ SCPI_PORT = 5000
 STOP_FLAG = "/tmp/degauss_stop"
 
 def scpi_send(sock: socket.socket, cmd: str) -> None:
-    # SCPI server expects newline-terminated commands
     sock.sendall((cmd + "\n").encode("ascii"))
 
 def rp_stop_all(sock: socket.socket) -> None:
-    # Best-effort shutdown (both channels)
     scpi_send(sock, "SOUR1:VOLT 0")
     scpi_send(sock, "SOUR2:VOLT 0")
     scpi_send(sock, "OUTPUT1:STATE OFF")
@@ -30,7 +27,6 @@ def setup_channel(sock: socket.socket, ch: int, f0: float) -> None:
     scpi_send(sock, f"SOUR{ch}:TRIG:SOUR INT")
 
 def build_envelope(params: dict) -> list[float]:
-    # Envelope in Vpeak per period
     A_vpp = float(params["amp_vpp"])
     A = A_vpp / 2.0
 
@@ -57,14 +53,12 @@ def build_envelope(params: dict) -> list[float]:
 
     elif env_type == "log":
         d = max(0.1, log_decades)
-        # up: 10^-d -> 10^0
         for i in range(Nu):
             x = i / max(1, Nu - 1)
             up = 10 ** (-d + d * x)
             env.append(A * up)
         for _ in range(Nh):
             env.append(A)
-        # down: 10^0 -> 10^-d
         for i in range(Nd):
             x = i / max(1, Nd - 1)
             down = 10 ** (0.0 - d * x)
@@ -84,14 +78,13 @@ def main():
     cfg_path = sys.argv[1]
     params = json.loads(open(cfg_path, "r", encoding="utf-8-sig").read())
 
-    out_mode = params.get("out_mode", "OUT1")   # OUT1, OUT2, BOTH
+    out_mode = params.get("out_mode", "OUT1")  
     f0 = float(params["f0_hz"])
     t0 = 1.0 / f0
 
     env = build_envelope(params)
     N = len(env)
 
-    # Clear any stale stop flag
     try:
         if os.path.exists(STOP_FLAG):
             os.remove(STOP_FLAG)
@@ -119,19 +112,16 @@ def main():
         else:
             raise ValueError("out_mode must be OUT1, OUT2, or BOTH")
 
-        # Trigger(s)
         if out_mode in ("OUT1", "BOTH"):
             scpi_send(sock, "SOUR1:TRIG:INT")
         if out_mode in ("OUT2", "BOTH"):
             scpi_send(sock, "SOUR2:TRIG:INT")
 
-        # Handshake for UI timing
         print(f"RUN_START {time.time():.6f}", flush=True)
 
         start = time.monotonic()
 
         for i, amp_peak in enumerate(env):
-            # Interruptible timing
             t_target = start + i * t0
             while True:
                 if os.path.exists(STOP_FLAG):
@@ -145,7 +135,7 @@ def main():
                 scpi_send(sock, f"SOUR1:VOLT {amp_peak:.6f}")
             elif out_mode == "OUT2":
                 scpi_send(sock, f"SOUR2:VOLT {amp_peak:.6f}")
-            else:  # BOTH
+            else:  
                 scpi_send(sock, f"SOUR1:VOLT {amp_peak:.6f}")
                 scpi_send(sock, f"SOUR2:VOLT {amp_peak:.6f}")
 

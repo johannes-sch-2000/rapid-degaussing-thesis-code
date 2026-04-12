@@ -20,15 +20,15 @@ import redpitaya_scpi as scpi
 @dataclass
 class DegaussParams:
     rp_ip: str = "169.254.102.243"
-    out_mode: str = "OUT1"                # 1 or 2
+    out_mode: str = "OUT1"                
     f0_hz: float = 7.0
     periods_up: int = 10
     periods_hold: int = 10
     periods_down: int = 1500
-    amp_vpp: float = 1.0              # user input in Vpp
-    envelope: str = "linear"          # "linear" or "log"
-    log_decades: float = 3.0          # only used if envelope == "log"
-    log_dir: str = "degauss_logs"     # relative to working dir
+    amp_vpp: float = 1.0            
+    envelope: str = "linear"          
+    log_decades: float = 3.0          
+    log_dir: str = "degauss_logs"     
 
     @property
     def t0_s(self) -> float:
@@ -61,8 +61,6 @@ def build_envelope_per_period(p: DegaussParams) -> np.ndarray:
         env_down = A * (1.0 - (np.arange(1, Nd + 1, dtype=float) / Nd))
         env_down[-1] = 0.0
     elif p.envelope == "log":
-        # logspace from ~0 to 1 and back to ~0, plus explicit 0 at the end
-        # decades=3 => factor 1e-3 at the tail before snapping to 0
         d = max(0.1, float(p.log_decades))
         up = np.logspace(-d, 0.0, Nu, base=10.0)
         down = np.logspace(0.0, -d, Nd, base=10.0)
@@ -92,7 +90,6 @@ def rp_setup_sine(rp: scpi.scpi, mode: str, f0: float) -> None:
         rp.tx_txt(f"SOUR{ch}:VOLT:OFFS 0")
         rp.tx_txt(f"SOUR{ch}:TRIG:SOUR INT")
 
-    # Always start safe
     rp.tx_txt("SOUR1:VOLT 0")
     rp.tx_txt("SOUR2:VOLT 0")
     rp.tx_txt("OUTPUT1:STATE OFF")
@@ -125,7 +122,6 @@ def emergency_rp_stop(ip: str) -> None:
         except Exception:
             pass
     except Exception:
-        # If cable is unplugged / RP unreachable, nothing we can do from here
         pass
 
 
@@ -154,7 +150,7 @@ def preflight_rp_scpi(ip: str, timeout_s: float = 0.6) -> tuple[bool, str]:
     if not _is_valid_ipv4(ip):
         return False, "Invalid IPv4 address format."
 
-    ports_to_try = [5000, 5025]  # 5000 is common for Red Pitaya SCPI; 5025 is common SCPI elsewhere
+    ports_to_try = [5000, 5025]  
     for port in ports_to_try:
         if _probe_tcp(ip, port, timeout_s):
             return True, f"SCPI port reachable (TCP {port})."
@@ -163,7 +159,6 @@ def preflight_rp_scpi(ip: str, timeout_s: float = 0.6) -> tuple[bool, str]:
 
 
 def rp_stop_all(rp: scpi.scpi) -> None:
-    # Safe shutdown (both channels)
     rp.tx_txt("SOUR1:VOLT 0")
     rp.tx_txt("SOUR2:VOLT 0")
     rp.tx_txt("OUTPUT1:STATE OFF")
@@ -174,8 +169,8 @@ def rp_stop_all(rp: scpi.scpi) -> None:
 # Worker thread
 # -----------------------------
 class DegaussWorker(QtCore.QObject):
-    progress = QtCore.Signal(float, float, float)  # frac, elapsed_s, amp_vpeak
-    finished = QtCore.Signal(bool, str, dict)      # ok, message, run_info
+    progress = QtCore.Signal(float, float, float)  
+    finished = QtCore.Signal(bool, str, dict)      
 
     def __init__(self, params: DegaussParams):
         super().__init__()
@@ -203,7 +198,6 @@ class DegaussWorker(QtCore.QObject):
         try:
             rp_setup_sine(rp, p.out_mode, p.f0_hz)
 
-            # Trigger selected channels
             if p.out_mode in ("OUT1", "BOTH"):
                 rp.tx_txt("SOUR1:TRIG:INT")
             if p.out_mode in ("OUT2", "BOTH"):
@@ -220,7 +214,6 @@ class DegaussWorker(QtCore.QObject):
                     ok = False
                     break
 
-                # Sleep to next period boundary 
                 t_target = start + i * t0
                 while True:
                     if self._stop_requested:
@@ -228,7 +221,7 @@ class DegaussWorker(QtCore.QObject):
                     remaining = t_target - time.perf_counter()
                     if remaining <= 0:
                         break
-                    time.sleep(min(0.05, remaining))  # 50 ms chunks so STOP is responsive
+                    time.sleep(min(0.05, remaining))  
                 
                 if self._stop_requested:
                     break
@@ -280,7 +273,7 @@ class DegaussWorker(QtCore.QObject):
         self._stop_requested = True
         try:
             if self._rp is not None:
-                rp_stop_all(self._rp)  # best effort immediate shutdown
+                rp_stop_all(self._rp)  
         except Exception:
             pass
 
@@ -293,7 +286,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self._applying = False  # <-- ADD THIS LINE
+        self._applying = False 
 
         self.setWindowTitle("Degaussing Control (RP SCPI)")
 
@@ -313,7 +306,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         layout = QtWidgets.QHBoxLayout(central)
 
-        # Left control panel
         left = QtWidgets.QFrame()
         left.setFrameShape(QtWidgets.QFrame.StyledPanel)
         left_layout = QtWidgets.QVBoxLayout(left)
@@ -332,7 +324,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.f0.setSingleStep(0.1)
 
         self.amp = QtWidgets.QDoubleSpinBox()
-        self.amp.setRange(0.0, 5.0)   # set your safe upper limit here
+        self.amp.setRange(0.0, 5.0)  
         self.amp.setDecimals(3)
         self.amp.setSingleStep(0.1)
         self.amp.setSuffix(" Vpp")
@@ -374,7 +366,6 @@ class MainWindow(QtWidgets.QMainWindow):
         form.addRow("Total time:", self.lbl_time)
         form.addRow("Max (Vpeak):", self.lbl_peak)
 
-        # Buttons
         self.btn_start = QtWidgets.QPushButton("Start")
         self.btn_stop = QtWidgets.QPushButton("STOP")
         self.btn_reset = QtWidgets.QPushButton("Reset defaults")
@@ -390,7 +381,6 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(self.btn_reset)
         left_layout.addStretch(1)
 
-        # Right plot panel
         right = QtWidgets.QFrame()
         right.setFrameShape(QtWidgets.QFrame.StyledPanel)
         right_layout = QtWidgets.QVBoxLayout(right)
@@ -414,7 +404,6 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(left, 0)
         layout.addWidget(right, 1)
 
-        # Signals
         for w in [self.ip, self.out_sel, self.f0, self.amp, self.up, self.hold, self.down, self.env, self.log_dec, self.log_dir]:
             if isinstance(w, QtWidgets.QLineEdit):
                 w.textChanged.connect(self._on_params_changed)
@@ -472,7 +461,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lbl_time.setText(f"{p.total_time_s:.1f} s  (~{p.total_time_s/60:.2f} min)")
         self.lbl_peak.setText(f"{p.amp_vpeak:.3f} V")
 
-        # Only enable log-decades control if log is selected
         self.log_dec.setEnabled(p.envelope == "log")
 
     def _on_params_changed(self, *_):
@@ -495,21 +483,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _update_preview(self):
-        # Plot a preview of the *full* waveform (decimated) with a marker
         p = self.params
         try:
             env = build_envelope_per_period(p)
             T = p.total_time_s
             f0 = p.f0_hz
 
-            # Build a decimated time series: cap samples for speed
             max_samples = 200_000
-            # Aim ~200 samples/period but cap total
             spp = 200
             n = min(int(p.total_periods * spp), max_samples)
             t = np.linspace(0.0, T, n, endpoint=False)
 
-            # Map t -> period index to get envelope value
             idx = np.minimum((t / p.t0_s).astype(int), p.total_periods - 1)
             amp = env[idx]
             y = amp * np.sin(2 * np.pi * f0 * t)
@@ -530,7 +514,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._read_widgets_to_params()
 
-        # Basic sanity
         if not self.params.rp_ip:
             self.status.setText("RP IP is empty.")
             return
@@ -577,10 +560,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
 
-        # Save a JSON log for traceability
         try:
             base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-            # For onedir exe, use the exe folder instead:
             base_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
             log_dir = (base_dir / self.params.log_dir).resolve()
             log_dir.mkdir(parents=True, exist_ok=True)
@@ -614,7 +595,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.thread:
             self.thread.quit()
-            self.thread.wait(2000)  # up to 2 s
+            self.thread.wait(2000)
 
         event.accept()
 

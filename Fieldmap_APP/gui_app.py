@@ -15,7 +15,6 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import core
 
 def _settings_path():
-    # Store settings next to the executable (portable), or next to the script when running from source
     try:
         exe_dir = Path(sys.executable).resolve().parent
     except Exception:
@@ -102,14 +101,12 @@ class MonitorCanvas(FigureCanvas):
             a.set_ylabel(f"{self.labels[k]} ({unit}, {mode})")
 
     def update_data(self, t_s: np.ndarray, data_nxn: np.ndarray):
-        # data_nxn in display units, shape (n_ch, N)
         n_ch = min(len(self.labels), data_nxn.shape[0])
         for k in range(n_ch):
             y = data_nxn[k]
             self.lines[k].set_data(t_s, y)
             self.ax[k].set_xlim(float(t_s[0]), float(t_s[-1]))
 
-            # autoscale y with small padding
             y_min = float(np.min(y))
             y_max = float(np.max(y))
             if np.isfinite(y_min) and np.isfinite(y_max):
@@ -134,7 +131,6 @@ class MainWindow(QMainWindow):
         self.session = None
         self.session_running = False
 
-        # UI state
         self.show_nt = False
         self.show_corr = False
         self.paused = False
@@ -158,16 +154,13 @@ class MainWindow(QMainWindow):
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         left_scroll.setWidget(left_container)
 
-        # --- Splitter ensures sidebar never overlaps plots ---
         split = QSplitter(Qt.Horizontal)
         main.addWidget(split)
 
-        # Left sidebar (scrollable)
         left_scroll.setMinimumWidth(380)    
         left_scroll.setMaximumWidth(650)   
         split.addWidget(left_scroll)
 
-        # Right area in an explicit widget (prevents overlap issues)
         right_widget = QWidget()
         right = QVBoxLayout(right_widget)
         right.setContentsMargins(6, 6, 6, 6)
@@ -179,29 +172,24 @@ class MainWindow(QMainWindow):
         split.setCollapsible(0, False)
         split.setHandleWidth(8)
 
-        # --- Vertical splitter inside the right pane for Field vs AUX monitors ---
         self.monitor_split = QSplitter(Qt.Vertical)
         self.monitor_split.setHandleWidth(8)
         self.monitor_split.setChildrenCollapsible(False)
         right.addWidget(self.monitor_split, 1)
 
-        # Monitor (Field XYZ)
         self.canvas_field = MonitorCanvas(["X", "Y", "Z"])
         self.canvas_field.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.monitor_split.addWidget(self.canvas_field)
 
-        # Monitor (AUX) - hidden by default
         self.canvas_aux = MonitorCanvas(["AUX1", "AUX2", "AUX3"])
         self.canvas_aux.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.canvas_aux.setVisible(False)
         self.monitor_split.addWidget(self.canvas_aux)
 
-        # Initial vertical split ratio: mostly field, smaller AUX
         self.monitor_split.setStretchFactor(0, 4)
         self.monitor_split.setStretchFactor(1, 2)
         self.monitor_split.setSizes([700, 250])
 
-        # Status
         self.status = QLabel("Idle.")
         right.addWidget(self.status, 0)
         
@@ -220,7 +208,6 @@ class MainWindow(QMainWindow):
         g.addWidget(QLabel("Field NI device:"), 1, 0)
         g.addWidget(self.dev_combo, 1, 1)
 
-        # NEW: separate module/device selector for AUX channels
         self.aux_dev_combo = QComboBox()
         g.addWidget(QLabel("AUX NI device:"), 2, 0)
         g.addWidget(self.aux_dev_combo, 2, 1)
@@ -232,7 +219,6 @@ class MainWindow(QMainWindow):
         g.addWidget(QLabel("Ch Y:"), 4, 0); g.addWidget(self.chy_combo, 4, 1)
         g.addWidget(QLabel("Ch Z:"), 5, 0); g.addWidget(self.chz_combo, 5, 1)
 
-        # --- AUX UI (now 3 raw voltage channels) ---
         self.aux_enable = QCheckBox("Enable AUX logging")
         self.aux_enable.setChecked(False)
         g.addWidget(self.aux_enable, 6, 0, 1, 2)
@@ -267,7 +253,6 @@ class MainWindow(QMainWindow):
         self.btn_refresh.clicked.connect(self.refresh_devices)
         g.addWidget(self.btn_refresh, 14, 1)
 
-        # disable AUX controls when AUX logging is off
         def _aux_ui_update():
             en = self.aux_enable.isChecked()
             self.aux_dev_combo.setEnabled(en)
@@ -278,7 +263,6 @@ class MainWindow(QMainWindow):
         self.aux_enable.stateChanged.connect(_aux_ui_update)
         _aux_ui_update()
 
-        # IMPORTANT: connect device changes to refresh channels (do this once)
         self.dev_combo.currentTextChanged.connect(self.refresh_channels)
         self.aux_dev_combo.currentTextChanged.connect(self.refresh_channels)
 
@@ -292,25 +276,23 @@ class MainWindow(QMainWindow):
         self.btn_start.clicked.connect(self.start_session)
         c.addWidget(self.btn_start)
 
-        # --- Next point label + tiny 3D grid preview ---
         row_next = QHBoxLayout()
         self.lbl_next = QLabel("Next: (start session)")
         row_next.addWidget(self.lbl_next, stretch=1)
 
         self.grid_fig = Figure(figsize=(2.2, 2.2))
         self.grid_canvas = FigureCanvas(self.grid_fig)
-        self.grid_canvas.setFixedSize(220, 220)  # tiny preview
+        self.grid_canvas.setFixedSize(220, 220)  
         self.grid_ax = self.grid_fig.add_subplot(111, projection="3d")
 
         row_next.addWidget(self.grid_canvas, stretch=0)
         c.addLayout(row_next)
 
-        # precompute 5x5x5 coordinates once (uses cfg.grid_n)
         n = int(self.cfg.grid_n)
         xs, ys, zs = np.meshgrid(np.arange(1, n+1), np.arange(1, n+1), np.arange(1, n+1), indexing="xy")
         self._grid_coords = (xs.ravel(), ys.ravel(), zs.ravel())
 
-        self._draw_grid_preview(None)  # initial blank
+        self._draw_grid_preview(None) 
 
         row1 = QHBoxLayout()
         self.btn_off0 = QPushButton("Start Offset Wizard")
@@ -360,7 +342,6 @@ class MainWindow(QMainWindow):
         btn_clear.clicked.connect(self.clear_plot)
         m.addWidget(btn_clear)
 
-        # Bind
         self.btn_off0.clicked.connect(self.start_off0)
         self.btn_step.clicked.connect(self.capture_step)
         self.btn_cancel.clicked.connect(self.cancel_wizard)
@@ -377,7 +358,6 @@ class MainWindow(QMainWindow):
 
         self.enable_controls(False)
 
-        # Timer update for monitor
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_monitor)
         self.timer.start(50)
@@ -427,7 +407,6 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # keep previous selections BEFORE clearing
         prev_field = self.dev_combo.currentText()
         prev_aux = self.aux_dev_combo.currentText()
 
@@ -459,7 +438,6 @@ class MainWindow(QMainWindow):
 
         field_chans = core.list_ai_channels(field_dev) or [self.cfg.ch_x, self.cfg.ch_y, self.cfg.ch_z]
 
-        # ensure AUX defaults exist
         if not hasattr(self.cfg, "ch_aux1"):
             self.cfg.ch_aux1 = "cDAQ1Mod3/ai0"
         if not hasattr(self.cfg, "ch_aux2"):
@@ -489,14 +467,12 @@ class MainWindow(QMainWindow):
 
     def start_session(self):
 
-        # Toggle behavior
         if self.session_running:
             self.end_session()
             return
 
         root = self.out_edit.text().strip()
 
-        # If empty or invalid -> ask user
         if (not root) or (not os.path.isdir(root)):
             root = QFileDialog.getExistingDirectory(self, "Select Save Root Folder")
             if not root:
@@ -504,21 +480,18 @@ class MainWindow(QMainWindow):
                 return
             self.out_edit.setText(root)
 
-        # Ensure it exists
         try:
             os.makedirs(root, exist_ok=True)
         except Exception as e:
             self.show_error("Invalid Save Folder", f"Could not create/access:\n{root}\n\n{e}")
             return
 
-        # Persist as default for next launches
         settings = load_user_settings()
         settings["last_save_root"] = root
         save_user_settings(settings)
 
         self.cfg.out_dir_root = root
 
-        # read cfg from UI
         self.cfg.fs_req = float(self.fs_box.value())
         s = float(self.scale_box.value())
         self.cfg.scale_nt_per_v = np.array([s, s, s], dtype=float)
@@ -526,7 +499,6 @@ class MainWindow(QMainWindow):
         self.cfg.ch_x = self.chx_combo.currentText()
         self.cfg.ch_y = self.chy_combo.currentText()
         self.cfg.ch_z = self.chz_combo.currentText()
-        # --- read AUX config from UI ---
         self.cfg.enable_aux = self.aux_enable.isChecked()
         self.cfg.ch_aux1 = self.aux1_combo.currentText()
         self.cfg.ch_aux2 = self.aux2_combo.currentText()
@@ -547,7 +519,6 @@ class MainWindow(QMainWindow):
             self.ni = None
             return
 
-        # Store config snapshot
         import json
         with open(os.path.join(session_dir, "config.json"), "w") as f:
             json_cfg = self.cfg.__dict__.copy()
@@ -557,14 +528,12 @@ class MainWindow(QMainWindow):
         self.session = core.FieldMapSession(self.cfg, self.ni, session_dir)
         self.session_running = True
 
-        # UI workflow: collapse setup, open measurement + monitor during a run
         self.box_setup.set_collapsed(True)
         self.box_meas.set_collapsed(False)
         self.box_mon.set_collapsed(False)
         
         self.chk_aux.setEnabled(getattr(self.ni, "aux_n", 0) > 0)
 
-        # Toggle UI
         self.btn_start.setText("End Session")
         self.lock_setup(True)
         self.enable_controls(True)
@@ -573,7 +542,6 @@ class MainWindow(QMainWindow):
         self.update_next_label()
 
     def lock_setup(self, locked: bool):
-        # locked=True disables setup controls while running
         for w in [
             self.backend_combo, self.dev_combo,
             self.chx_combo, self.chy_combo, self.chz_combo,
@@ -587,7 +555,6 @@ class MainWindow(QMainWindow):
         if not self.session_running:
             return
 
-        # Attempt export (even if incomplete)
         msg_parts = []
         try:
             ok, msg = core.export_partial_if_possible(self.session)
@@ -595,25 +562,21 @@ class MainWindow(QMainWindow):
         except Exception as e:
             msg_parts.append(f"Export failed: {e}")
 
-        # Stop NI
         try:
             if self.ni is not None:
                 self.ni.stop()
         except Exception:
             pass
 
-        # Reset session state
         ended_dir = self.session.session_dir if self.session else "(unknown)"
         self.session = None
         self.ni = None
         self.session_running = False
 
-        # UI back to start mode
         self.btn_start.setText("Start Session")
         self.lock_setup(False)
         self.enable_controls(False)
 
-        # After ending: open setup again, collapse others
         self.box_setup.set_collapsed(False)
         self.box_meas.set_collapsed(True)
         self.box_mon.set_collapsed(True)
@@ -645,49 +608,40 @@ class MainWindow(QMainWindow):
         if pt is not None:
             x_now, y_now, z_now = pt
 
-            # rotate current point with the same mapping
             x_now_rot = (n + 1) - y_now
             y_now_rot = x_now
             z_now_rot = z_now
 
-            # current level only = blue-ish
             m_current = (gz_rot == z_now)
             m_other = ~m_current
 
-            # all non-current planes grey
             ax.scatter(
                 gx_rot[m_other], gy_rot[m_other], gz_rot[m_other],
                 s=10, alpha=0.18, c="lightgray"
             )
 
-            # current plane highlighted
             ax.scatter(
                 gx_rot[m_current], gy_rot[m_current], gz_rot[m_current],
                 s=12, alpha=0.45
             )
 
-            # current point in orange
             ax.scatter([x_now_rot], [y_now_rot], [z_now_rot], s=90, marker="o")
 
             ax.set_title(f"Next: ({x_now},{y_now},{z_now})", fontsize=9)
         else:
-            # idle view: all points grey
             ax.scatter(gx_rot, gy_rot, gz_rot, s=10, alpha=0.20, c="lightgray")
             ax.set_title("Next point", fontsize=9)
 
-        # cube framing stays the same
         ax.set_xlim(0.5, n + 0.5)
         ax.set_ylim(0.5, n + 0.5)
         ax.set_zlim(0.5, n + 0.5)
 
-        # hide ticks
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_zticks([])
 
         ax.view_init(elev=22, azim=-55)
 
-        # transparent panes
         try:
             ax.xaxis.pane.set_alpha(0.0)
             ax.yaxis.pane.set_alpha(0.0)
@@ -707,7 +661,7 @@ class MainWindow(QMainWindow):
         if self.session.cal_mode is not None:
             nxt = self.session.wizard_next_label()
             self.lbl_next.setText(f"Offset {self.session.cal_mode.upper()}: set {nxt} and press 'Capture Step'")
-            self._draw_grid_preview(None)  # wizard isn't a map point
+            self._draw_grid_preview(None)  
             return
 
         nxt_pt = self.session.next_point()
@@ -797,7 +751,6 @@ class MainWindow(QMainWindow):
         self.canvas_aux.setVisible(self.show_aux)
 
         if self.show_aux:
-            # Restore a sensible split when AUX is shown
             self.monitor_split.setSizes([700, 250])
 
     def clear_plot(self):
@@ -813,12 +766,11 @@ class MainWindow(QMainWindow):
         got = self.ni.get_last_window(self.cfg.plot_window_s)
         if got is None:
             return
-        start_idx, data = got  # data in V, shape (3+aux, N) if AUX enabled
+        start_idx, data = got  
 
         field = data[:3, :]
         aux = data[3:, :] if data.shape[0] > 3 else None
 
-        # optional display correction (START offset only) -> ONLY on field
         if self.show_corr:
             if self.session.off0 is not None:
                 off0_vec = np.asarray(self.session.off0["offset_v"], dtype=float).reshape(3)
@@ -826,7 +778,6 @@ class MainWindow(QMainWindow):
             else:
                 self.status.setText("Corr view ON but START offset not recorded -> showing RAW")
 
-        # decimate for plotting (same t for both)
         dec = max(1, int(self.cfg.plot_decim))
 
         field_d = field[:, ::dec]
@@ -834,7 +785,6 @@ class MainWindow(QMainWindow):
         t = (np.arange(n) * dec) / float(self.ni.actual_fs)
         t = t - t[-1] 
 
-        # unit scaling for FIELD only
         if self.show_nt:
             sc = np.asarray(self.cfg.scale_nt_per_v, dtype=float).reshape(3)
             field_plot = (field_d.T * sc).T
@@ -847,10 +797,8 @@ class MainWindow(QMainWindow):
         self.canvas_field.set_ylabels(unit_field, mode_field)
         self.canvas_field.update_data(t, field_plot)
 
-        # AUX plot: always raw volts, optional visibility
         if self.show_aux and aux is not None and aux.shape[0] > 0:
             aux_d = aux[:, ::dec]
-            # If fewer than 3 aux channels are enabled, slice to what's there
             aux_d = aux_d[:3, :]
             self.canvas_aux.set_ylabels("V", "raw")
             self.canvas_aux.update_data(t, aux_d)

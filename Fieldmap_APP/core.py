@@ -9,14 +9,12 @@ from typing import Optional, List, Tuple, Dict
 
 import numpy as np
 
-# Optional plotly (for cone export)
 try:
     import plotly.graph_objects as go
     PLOTLY_OK = True
 except Exception:
     PLOTLY_OK = False
 
-# Optional NI python wrapper (hardware requires NI-DAQmx installed)
 import importlib.util
 import ctypes.util
 import platform
@@ -41,7 +39,6 @@ except Exception as e:
     NI_OK = False
     NI_IMPORT_ERROR = repr(e)
 
-# Driver/library diagnostics (works even if nidaqmx import fails)
 try:
     NI_DIAG["python_executable"] = sys.executable
     NI_DIAG["python_version"] = sys.version
@@ -61,14 +58,11 @@ except Exception as e:
 class AppConfig:
     out_dir_root: str = r"C:\Users\Johannes\masterthesis-msr-degaussing\data\fieldmaps"
 
-    # Default NI channels 
     ch_x: str = "cDAQ1Mod2/ai0"
     ch_y: str = "cDAQ1Mod2/ai1"
     ch_z: str = "cDAQ1Mod2/ai2"
 
-    # Optional AUX logging (raw volts)
     enable_aux: bool = True
-    # Defaults assume a SECOND 9239 module, e.g. cDAQ1Mod3
     ch_aux1: str = "cDAQ1Mod3/ai0"
     ch_aux2: str = "cDAQ1Mod3/ai1"
     ch_aux3: str = "cDAQ1Mod3/ai2"
@@ -86,27 +80,22 @@ class AppConfig:
     grid_n: int = 5
     grid_spacing_m: float = 0.25
 
-    # nT/V scale 
     scale_nt_per_v: np.ndarray = field(default_factory=lambda: np.array([7000.0, 7000.0, 7000.0], dtype=float))
 
 
-    # NI range
     ai_min: float = -10.0
     ai_max: float = 10.0
 
-    # QC
     qc_clip_margin: float = 0.98
     qc_std_warn_v: float = 0.005
     qc_require_start_offset: bool = True
 
-    # Plotly cones
     cone_sizemode: str = "scaled"
     cone_sizeref: float = 0.6
     colorscale: str = "Jet"
     ax_range: Tuple[float, float] = (-0.55, 0.55)
     camera_eye: Tuple[float, float, float] = (-1.8, -1.8, 0.9)
 
-    # Offset wizard: minimal movement (4 captures / 2 rotation, 1 flip)
     flip_sequence: Tuple[str, str, str, str] = (
     "POS1_DEFAULT",
     "POS2_PLATE_Y180",
@@ -214,21 +203,18 @@ def compute_offset_from_minmove_flips(means_v: Dict[str, np.ndarray]):
     P3 = np.asarray(means_v["POS3_SIDE_Z90"], dtype=np.float64)
     P4 = np.asarray(means_v["POS4_SIDE_X180"], dtype=np.float64)
 
-    # offsets
     Ox = 0.5 * (P1[0] + P2[0])
     Oz = 0.5 * (P1[2] + P2[2])
     Oy = 0.5 * (P3[1] + P4[1])
 
     offset_v = np.array([Ox, Oy, Oz], dtype=np.float64)
 
-    # field estimates
     Bx = 0.5 * (P1[0] - P2[0])
     Bz = 0.5 * (P1[2] - P2[2])
     By = 0.5 * (P3[1] - P4[1])
 
     field_v = np.array([Bx, By, Bz], dtype=np.float64)
 
-    # QC
     qc = {
         "x_flip_mismatch_V": float(abs((P1[0] - Ox) + (P2[0] - Ox))),
         "z_flip_mismatch_V": float(abs((P1[2] - Oz) + (P2[2] - Oz))),
@@ -251,16 +237,13 @@ def qc_check_block(block_v: np.ndarray, cfg: AppConfig):
     vmax = block_v.max(axis=1)
     absmax = np.max(np.abs(block_v), axis=1)
 
-    # clip fraction near rails
     fullscale = max(abs(cfg.ai_min), abs(cfg.ai_max))
     near = cfg.qc_clip_margin * fullscale
     clip_frac = np.mean(np.abs(block_v) >= near, axis=1).astype(np.float32)
 
     qc_code = 0
-    # bit 0: clip
     if np.any(clip_frac > 0.0):
         qc_code |= 1
-    # bit 1: high std
     if np.any(std > cfg.qc_std_warn_v):
         qc_code |= 2
 
@@ -292,11 +275,11 @@ class ContinuousNI:
         if not NI_OK:
             raise RuntimeError("nidaqmx not available (NI-DAQmx runtime/driver not installed?)")
 
-        self.field_channels = list(channels_field)               # X,Y,Z
-        self.aux_channels = list(aux_channels or [])             # AUX
-        self.channels = self.field_channels + self.aux_channels  # NI task channel list
+        self.field_channels = list(channels_field)               
+        self.aux_channels = list(aux_channels or [])            
+        self.channels = self.field_channels + self.aux_channels 
 
-        self.field_n = len(self.field_channels)  # should be 3
+        self.field_n = len(self.field_channels)  
         self.aux_n = len(self.aux_channels)     
 
         self.cfg = cfg
@@ -311,7 +294,7 @@ class ContinuousNI:
 
         self.sample_index = 0
 
-        self.ring = deque()  # (start_index, data[3,n])
+        self.ring = deque()  
         self.ring_max_samples = int(cfg.plot_window_s * cfg.fs_req)
 
         self.bin_path = os.path.join(out_dir, "stream_raw_f32.bin")
@@ -322,7 +305,6 @@ class ContinuousNI:
         self.aux_bin_path = os.path.join(out_dir, "stream_aux_f32.bin")
         self.aux_f = None
 
-        # capture state
         self.capture_lock = threading.Lock()
         self.capture_mode = None
         self.capture_needed = 0
@@ -460,11 +442,9 @@ class ContinuousNI:
                 )
                 block_all = buf.astype(np.float32, copy=False)
 
-                # Field stream (X,Y,Z) -> stream_raw_f32.bin
                 block_field = block_all[:self.field_n, :]               
                 np.ascontiguousarray(block_field.T).tofile(self.bin_f)  
 
-                # AUX stream (AUX1,AUX2) -> stream_aux_f32.bin
                 if self.aux_n > 0 and self.aux_f is not None:
                     block_aux = block_all[self.field_n:, :]                 
                     np.ascontiguousarray(block_aux.T).tofile(self.aux_f)    
@@ -651,7 +631,6 @@ def finalize_export(session_dir: str, cfg: AppConfig, ni: ContinuousNI,
     i_min = int(np.argmin(mag_corr_nt))
     i_max = int(np.argmax(mag_corr_nt))
 
-    # JSON-safe stats 
     map_stats = {
         "fs_actual": float(ni.actual_fs),
         "channels": [cfg.ch_x, cfg.ch_y, cfg.ch_z],
@@ -718,7 +697,6 @@ def finalize_export(session_dir: str, cfg: AppConfig, ni: ContinuousNI,
         off1_offset_v=off1_vec.astype(np.float32),
     )
 
-    # summary.csv (nT)
     csv_path = os.path.join(session_dir, "summary.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
@@ -752,7 +730,6 @@ def finalize_export(session_dir: str, cfg: AppConfig, ni: ContinuousNI,
                 float(qc_clip_frac[i,0]), float(qc_clip_frac[i,1]), float(qc_clip_frac[i,2]),
             ])
 
-    # Plotly cones on corrected mean (nT)
     export_cones(session_dir, cfg, points, mean_corr_nt, force_cmax=None,
              basename="cones_corr", title="Corrected field map (cones)")
 
@@ -776,12 +753,10 @@ class FieldMapSession:
         self.aux_point_blocks = []
         self.aux_point_stats = []
 
-        # offset wizard results
         self.off0 = None
         self.off1 = None
 
-        # wizard state
-        self.cal_mode = None  # None | "start" | "end"
+        self.cal_mode = None  
         self.cal_step = 0
         self.cal_means = {}
         self.cal_steps_meta = []
@@ -916,8 +891,6 @@ class FieldMapSession:
         tmid = 0.5 * (cap["start_idx"] + cap["end_idx"]) / float(self.ni.actual_fs)
         st["tmid_s"] = float(tmid)
 
-        # Apply offset correction to the point mean using the same interpolation
-        # logic as used in finalize_export for normal grid points.
         mean_v = np.asarray(st["mean"], dtype=np.float64).reshape(3,)
 
         if self.off0 is not None and self.off1 is not None:
@@ -1000,8 +973,6 @@ class FieldMapSession:
                     "comment"
                 ])
 
-            # Grid-independent point: indices/coords are intentionally left blank
-            # because this point is not part of the structured map grid.
             mean_nt = np.asarray(st["mean_nt"], dtype=np.float64).reshape(3,)
             mean_corr_nt = np.asarray(st["mean_corr_nt"], dtype=np.float64).reshape(3,)
             min_nt = np.asarray(st["min_nt"], dtype=np.float64).reshape(3,)
@@ -1058,7 +1029,6 @@ def export_partial_if_possible(session):
     n_points = len(session.point_blocks)
     complete = (n_points == len(session.points))
 
-    # Full export possible?
     if session.off0 is not None and session.off1 is not None and n_points > 0:
         finalize_export(
             session_dir, cfg, session.ni,
@@ -1066,7 +1036,6 @@ def export_partial_if_possible(session):
             session.point_blocks, session.point_stats
         )
 
-        # Append run completeness note
         stats_path = os.path.join(session_dir, "map_stats.json")
         try:
             with open(stats_path, "r") as f:
@@ -1084,7 +1053,6 @@ def export_partial_if_possible(session):
 
         return True, "Exported corrected map (full export)."
 
-    # No points at all
     if n_points == 0:
         ms = {
             "run_complete": False,
@@ -1098,7 +1066,6 @@ def export_partial_if_possible(session):
             json.dump(ms, f, indent=2)
         return True, "No points to export (wrote map_stats.json only)."
 
-    # Raw-only summary (offsets missing)
     csv_path = os.path.join(session_dir, "summary_raw.csv")
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -1135,7 +1102,6 @@ def export_partial_if_possible(session):
                 float(clip[0]), float(clip[1]), float(clip[2]),
             ])
 
-    # --- also export a RAW cone plot (no offsets) ---
     cones_note = None
     try:
         points = [blk["point"] for blk in session.point_blocks]
